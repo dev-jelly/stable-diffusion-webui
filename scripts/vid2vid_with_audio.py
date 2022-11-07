@@ -59,7 +59,7 @@ class Script(scripts.Script):
 
         with gr.Row():
             use_timestamp = gr.Checkbox(label="Use Timestamp (Filename)", value=True)
-            original_resolution = gr.Checkbox(label="Keep Original Resolution", value=True)
+            original_resolution = gr.Checkbox(label="Keep Original Resolution (not working yet)", value=True)
 
         return [
             input_path,
