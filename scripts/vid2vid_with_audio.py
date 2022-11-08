@@ -2,6 +2,7 @@
 # This code is based on https://github.com/Filarius/stable-diffusion-webui/blob/master/scripts/vid2vid.py
 
 import os
+import subprocess
 import sys
 
 import random
@@ -19,9 +20,11 @@ from subprocess import Popen, PIPE, TimeoutExpired
 import numpy as np
 from datetime import datetime
 import time
+
+
 class Script(scripts.Script):
     def title(self):
-        return '[Jelly] Video to video With Audio 4'
+        return '[Jelly] Video to video With Audio 5'
 
     def show(self, is_img2img):
         return is_img2img
@@ -59,7 +62,7 @@ class Script(scripts.Script):
 
         with gr.Row():
             use_timestamp = gr.Checkbox(label="Use Timestamp (Filename)", value=True)
-            original_resolution = gr.Checkbox(label="Keep Original Resolution (not working yet)", value=True)
+            original_resolution = gr.Checkbox(label="Keep Original Resolution", value=True)
 
         return [
             input_path,
@@ -101,8 +104,6 @@ class Script(scripts.Script):
         start_time = start_time.strip()
         end_time = end_time.strip()
 
-
-
         if start_time == "":
             start_time = "00:00:00"
         if end_time == "00:00:00":
@@ -120,9 +121,10 @@ class Script(scripts.Script):
         input_file = os.path.normpath(input_path.strip())
 
         if original_resolution:
-            ffmpeg("")
-            pass
-
+            ffmpeg(f"ffmpeg/ffprobe.exe -show_streams -select_streams v {input_file}")
+            width, height = get_width_height(input_file)
+            p.width = width
+            p.height = height
 
         decoder = ffmpeg(
             " ".join(
@@ -171,7 +173,6 @@ class Script(scripts.Script):
                 decoder._process.kill()
                 encoder._process.kill()
                 return Processed(p, [], p.seed, initial_info)
-
 
             image_PIL = Image.fromarray(
                 np.uint8(raw_image).reshape((p.height, p.width, 3)), mode="RGB"
@@ -226,20 +227,35 @@ class Script(scripts.Script):
 
         command = " ".join(
             [
-                f'ffmpeg/ffmpeg -y -ss {start_time} -to {end_time} -i "{input_file}" -i "{save_dir}/{output_file}" -movflags faststart ',
+                f'ffmpeg/ffmpeg -y -ss {start_time} -to {end_time} -i "{input_file}"',
+                f'-i "{save_dir}/{output_file}" -movflags faststart',
                 f'-map 0:a? -map 1:v "{save_dir}/{time_stamp}-{output_file}"',
             ]
         )
-        audio_mix = Popen(command)
-        try:
-            audio_mix.communicate(timeout=2)
-        except TimeoutExpired:
-            audio_mix.kill()
-            audio_mix.communicate()
-
-
+        subprocess.run(command, shell=True)
 
         return Processed(p, [], p.seed, initial_info)
+
+
+def get_width_height(filename):
+    result = subprocess.run(f"ffmpeg/ffprobe.exe -show_streams -select_streams v {filename}", text=True,
+                            capture_output=True)
+
+    width_line: str = [line for line in result.stdout.splitlines() if "width" in line][0]
+    width: int = int(width_line.split("=")[1])
+    w = width // 64
+
+    height_line: str = [line for line in result.stdout.splitlines() if "height" in line][0]
+    height: int = int(height_line.split("=")[1])
+    h = height // 64
+    if w == 0 or h == 0:
+        return 64, 64
+
+    while w * 64 > 2048 or h * 64 > 2048:
+        w -= 1
+        h -= 1
+
+    return w * 64, h * 64
 
 
 class ffmpeg:
