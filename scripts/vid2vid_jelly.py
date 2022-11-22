@@ -43,6 +43,7 @@ class Video2VideoParam:
         self.filter = 'none'
         self.input_file = ''
         self.output_file = ''
+        self.interpolate = False
 
 
 
@@ -150,6 +151,7 @@ class Script(scripts.Script):
             original_resolution = gr.Checkbox(label="Keep Original Resolution", value=True)
             is_grayscale = gr.Checkbox(label="Grayscale Input", value=False)
             is_high_contrast = gr.Checkbox(label="High Contrast Input", value=False)
+            interpolate = gr.Checkbox(label="Interpolate", value=False)
 
         return [
             input_path,
@@ -162,7 +164,8 @@ class Script(scripts.Script):
             use_timestamp,
             original_resolution,
             is_grayscale,
-            is_high_contrast
+            is_high_contrast,
+            interpolate
         ]
 
     def run(
@@ -178,7 +181,8 @@ class Script(scripts.Script):
             use_timestamp,
             original_resolution,
             is_grayscale,
-            is_high_contrast
+            is_high_contrast,
+            interpolate
     ):
         v2v = Video2VideoParam()
         v2v.input_path = input_path
@@ -226,6 +230,11 @@ class Script(scripts.Script):
             image_pil = Image.fromarray(
                 np.uint8(raw_image).reshape((p.height, p.width, 3)), mode="RGB"
             )
+            if v2v.interpolate:
+                if len(batch) > 0:
+                    p.denoising_strength = 0.25
+                    image_pil = Image.blend(image_pil, batch[-1], 0.5)
+
             batch.append(image_pil)
 
             if len(batch) == p.batch_size:
@@ -258,17 +267,8 @@ class Script(scripts.Script):
             frame += 1
 
 
-        try:
-            decoder.process.communicate(timeout=2)
-        except TimeoutExpired:
-            decoder.process.kill()
-            decoder.process.communicate()
-
-        try:
-            encoder.process.communicate(timeout=2)
-        except TimeoutExpired:
-            encoder.process.kill()
-            encoder.process.communicate()
+        decoder.safe_exit()
+        encoder.safe_exit()
 
         if v2v.use_timestamp:
             dt = datetime.now()
@@ -285,11 +285,7 @@ class Script(scripts.Script):
         )
         audio_mix = ffmpeg(command)
         audio_mix.start()
-        try:
-            audio_mix.process.communicate(timeout=15)
-        except TimeoutExpired:
-            audio_mix.process.kill()
-            audio_mix.process.communicate()
+        audio_mix.safe_exit()
 
         return Processed(p, [], p.seed, v2v.initial_info)
 
@@ -430,6 +426,13 @@ class ffmpeg:
             os.rmdir(os.path.join(ffmpeg_dir, listOfFileNames[0][:-1]))
         os.makedirs(save_dir, exist_ok=True)
         return
+
+    def safe_exit(self):
+        try:
+            self.process.communicate(timeout=15)
+        except TimeoutExpired:
+            self.process.kill()
+            self.process.communicate()
 
     @staticmethod
     def seconds(input="00:00:00"):
