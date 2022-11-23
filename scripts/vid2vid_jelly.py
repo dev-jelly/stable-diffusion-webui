@@ -44,7 +44,8 @@ class Video2VideoParam:
         self.input_file = ''
         self.output_file = ''
         self.interpolate = False
-
+        self.interpolate_strength = 0.5
+        self.blend_frame = 0.5
 
 
 def init_seed(p, v2v: Video2VideoParam):
@@ -151,7 +152,14 @@ class Script(scripts.Script):
             original_resolution = gr.Checkbox(label="Keep Original Resolution", value=True)
             is_grayscale = gr.Checkbox(label="Grayscale Input", value=False)
             is_high_contrast = gr.Checkbox(label="High Contrast Input", value=False)
-            interpolate = gr.Checkbox(label="Interpolate", value=False)
+            interpolate = gr.Checkbox(label="Interpolate", value=False, interactive=True)
+
+        with gr.Row(visible=False) as interpolate_row:
+            interpolate_strength = gr.Slider(label="Interpolate Denoise Strength", minimum=0.01, maximum=1, step=0.01,
+                                             value=0.5)
+            blend_frame = gr.Slider(label="Blend Before Frame", minimum=0.01, maximum=1, step=0.01, value=0.5)
+
+        interpolate.change(fn=lambda value: interpolate_row.update(value), inputs=interpolate, outputs=interpolate_row)
 
         return [
             input_path,
@@ -165,7 +173,9 @@ class Script(scripts.Script):
             original_resolution,
             is_grayscale,
             is_high_contrast,
-            interpolate
+            interpolate,
+            interpolate_strength,
+            blend_frame
         ]
 
     def run(
@@ -182,7 +192,9 @@ class Script(scripts.Script):
             original_resolution,
             is_grayscale,
             is_high_contrast,
-            interpolate
+            interpolate,
+            interpolate_strength,
+            blend_frame
     ):
         v2v = Video2VideoParam()
         v2v.input_path = input_path
@@ -196,6 +208,8 @@ class Script(scripts.Script):
         v2v.original_resolution = original_resolution
         v2v.is_grayscale = is_grayscale
         v2v.is_high_contrast = is_high_contrast
+        v2v.interpolate_strength = interpolate_strength
+        v2v.blend_frame = blend_frame
 
         init_params(p, v2v)
 
@@ -232,8 +246,8 @@ class Script(scripts.Script):
             )
             if v2v.interpolate:
                 if len(batch) > 0:
-                    p.denoising_strength = 0.25
-                    image_pil = Image.blend(image_pil, batch[-1], 0.5)
+                    p.denoising_strength = v2v.interpolate_strength
+                    image_pil = Image.blend(image_pil, batch[-1], v2v.blend_frame)
 
             batch.append(image_pil)
 
