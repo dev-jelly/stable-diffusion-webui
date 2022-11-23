@@ -154,12 +154,13 @@ class Script(scripts.Script):
             is_high_contrast = gr.Checkbox(label="High Contrast Input", value=False)
             interpolate = gr.Checkbox(label="Interpolate", value=False, interactive=True)
 
-        with gr.Row(visible=False) as interpolate_row:
-            interpolate_strength = gr.Slider(label="Interpolate Denoise Strength", minimum=0.01, maximum=1, step=0.01,
+        interpolate_strength = gr.Slider(label="Interpolate Denoising Strength", minimum=0.01, maximum=1, step=0.01,
                                              value=0.5)
-            blend_frame = gr.Slider(label="Blend Before Frame", minimum=0.01, maximum=1, step=0.01, value=0.5)
 
-        interpolate.change(fn=lambda value: interpolate_row.update(value), inputs=interpolate, outputs=interpolate_row)
+        blend_frame = gr.Slider(label="Blend Before Frame", minimum=0.01, maximum=1, step=0.01, value=0.5)
+
+        interpolate.change(fn=lambda value: interpolate_strength.update(visible=value), inputs=interpolate)
+        interpolate.change(fn=lambda value: interpolate_strength.update(visible=value), inputs=interpolate)
 
         return [
             input_path,
