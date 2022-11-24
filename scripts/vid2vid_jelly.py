@@ -1,6 +1,6 @@
 # Author: Jelly Choi
 # This code is based on https://github.com/Filarius/stable-diffusion-webui/blob/master/scripts/vid2vid.py
-
+import json
 import os
 import subprocess
 import sys
@@ -12,7 +12,7 @@ import modules.scripts as scripts
 import gradio as gr
 
 from modules.processing import Processed, process_images
-from PIL import Image
+from PIL import Image, PngImagePlugin
 
 from modules.shared import state
 from modules import processing, paths
@@ -155,9 +155,10 @@ class Script(scripts.Script):
             interpolate = gr.Checkbox(label="Interpolate", value=False, interactive=True)
 
         interpolate_strength = gr.Slider(label="Interpolate Denoising Strength", minimum=0.01, maximum=1, step=0.01,
-                                             value=0.5)
+                                         value=0.5)
 
-        blend_frame = gr.Slider(label="Blend Before Frame", minimum=0.01, maximum=1, step=0.01, value=0.5)
+        blend_frame = gr.Slider(label="Blend Before Frame 0(Original Video) ~ 1(Before Output)", minimum=0.01,
+                                maximum=1, step=0.01, value=0.5)
 
         interpolate.change(fn=lambda value: interpolate_strength.update(visible=value), inputs=interpolate)
         interpolate.change(fn=lambda value: interpolate_strength.update(visible=value), inputs=interpolate)
@@ -281,7 +282,6 @@ class Script(scripts.Script):
             raw_image = decoder.readout(pull_count)
             frame += 1
 
-
         decoder.safe_exit()
         encoder.safe_exit()
 
@@ -302,7 +302,11 @@ class Script(scripts.Script):
         audio_mix.start()
         audio_mix.safe_exit()
 
-        return Processed(p, [], p.seed, v2v.initial_info)
+        with open(f"{v2v.save_dir}/{time_stamp}-{v2v.output_file}.json", "w") as f:
+            pr = Processed(p, [], p.seed, v2v.initial_info)
+            json.dump({"p":pr.infotext(p, 0), "v2v": v2v.__dict__}, f, indent=4)
+
+        return pr
 
     def encode_command(self, p, v2v):
         return " ".join(
